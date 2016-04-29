@@ -1,0 +1,110 @@
+version: '2'
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce
+    ports:
+     - "80:80"
+     - "443:443"
+    links:
+     - db
+    volumes:
+     - /srv/gitlab/config:/etc/gitlab
+     - /srv/gitlab/logs:/var/log/gitlab
+     - /srv/gitlab/data:/var/opt/gitlab
+
+
+  jenkins:
+    image: jenkins
+    ports:
+     - "8080:8080"
+     - "50000:50000"
+
+
+  sonarqube:
+    image: sonarqube
+    ports:
+     - "9000:9000"
+    links:
+     - db
+    environment:
+     - SONARQUBE_JDBC_URL=jdbc:postgresql://db:5432/sonar
+    volumes_from:
+     - plugins
+  
+  db:
+    image: postgres
+    ports:
+     - "5432:5432"
+    volumes_from:
+    - datadb
+    environment:
+     - POSTGRES_USER=sonar
+     - POSTGRES_PASSWORD=sonar
+
+  datadb:
+    image: postgres
+    volumes:
+    - /var/lib/postgresql
+    command: /bin/true
+
+  plugins:
+    image: sonarqube
+    volumes:
+     - /opt/sonarqube/extensions
+     - /opt/sonarqube/lib/bundled-plugins
+    command: /bin/true
+    
+  jira:
+    image: blacklabelops/jira
+    container_name: jirasoftware
+    networks:
+      - jiranet
+    volumes:
+      - jiradata:/var/atlassian/jira
+    ports:
+      - '90:8080'
+    environment:
+      - 'JIRA_DATABASE_URL=postgresql://jira@postgresql/jiradb'
+      - 'JIRA_DB_PASSWORD=jellyfish'
+      - 'CATALINA_OPTS= -Xms256m -Xmx1g'
+      - 'JIRA_PROXY_NAME='
+      - 'JIRA_PROXY_PORT='
+      - 'JIRA_PROXY_SCHEME='
+      - 'JIRA_DELAYED_START=10'
+    links:
+      - 'postgresql:postgresql'
+    labels:
+      com.blacklabelops.description: "Atlassian Jira"
+      com.blacklabelops.service: "jira"
+
+  postgresql:
+    image: blacklabelops/postgres
+    hostname: postgresql
+    networks:
+      - jiranet
+    volumes:
+      - postgresqldata:/var/lib/postgresql/data
+    environment:
+      - 'POSTGRES_USER=jira'
+      # CHANGE THE PASSWORD!
+      - 'POSTGRES_PASSWORD=jellyfish'
+      - 'POSTGRES_DB=jiradb'
+      - 'POSTGRES_ENCODING=UNICODE'
+      - 'POSTGRES_COLLATE=C'
+      - 'POSTGRES_COLLATE_TYPE=C'
+    labels:
+      com.blacklabelops.description: "PostgreSQL Database Server"
+      com.blacklabelops.service: "postgresql"
+
+volumes:
+  jiradata:
+    external: false
+  postgresqldata:
+    external: false
+
+networks:
+  jiranet:
+    driver: bridge
+
+
